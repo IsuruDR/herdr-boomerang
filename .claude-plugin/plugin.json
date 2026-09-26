@@ -1,0 +1,50 @@
+{
+  "name": "boomerang",
+  "description": "Hand work from Claude Code to Codex in Herdr before Claude hits its usage limit, and back again after the reset",
+  "author": { "name": "Isuru Ranaweera" },
+  "version": "0.1.0",
+  "userConfig": {
+    "switch_mode": {
+      "type": "string",
+      "title": "Switch mode",
+      "description": "confirm: open Codex and wait for you. auto: start Codex at once. notify: only save the handoff and tell you.",
+      "options": ["confirm", "auto", "notify"],
+      "default": "confirm"
+    },
+    "five_hour_threshold": {
+      "type": "number",
+      "title": "5-hour limit threshold (%)",
+      "description": "Start the handoff when 5-hour usage reaches this percentage",
+      "default": 85,
+      "min": 50,
+      "max": 99
+    },
+    "seven_day_threshold": {
+      "type": "number",
+      "title": "7-day limit threshold (%)",
+      "description": "Start the handoff when 7-day usage reaches this percentage",
+      "default": 95,
+      "min": 50,
+      "max": 99
+    },
+    "codex_placement": {
+      "type": "string",
+      "title": "Codex placement",
+      "description": "split: a pane beside Claude. tab: a new tab in the same workspace.",
+      "options": ["split", "tab"],
+      "default": "split"
+    },
+    "codex_args": {
+      "type": "string",
+      "title": "Extra Codex arguments",
+      "description": "Added when Codex starts, for example: --sandbox workspace-write",
+      "default": ""
+    },
+    "hand_back": {
+      "type": "boolean",
+      "title": "Hand back to Claude",
+      "description": "When Codex finishes and Claude's limit has reset, tell Claude to read the Codex report and continue. Off: only notify.",
+      "default": true
+    }
+  }
+}

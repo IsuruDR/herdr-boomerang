@@ -1,0 +1,11 @@
+{
+  "name": "boomerang",
+  "owner": { "name": "Isuru Ranaweera" },
+  "plugins": [
+    {
+      "name": "boomerang",
+      "source": "./",
+      "description": "Hand work from Claude Code to Codex in Herdr before Claude hits its usage limit, and back again after the reset"
+    }
+  ]
+}
