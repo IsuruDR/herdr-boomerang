@@ -6,10 +6,11 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "test": "node --no-warnings --test 'tests/**/*.test.ts'",
+    "test": "HOME=\"$(mktemp -d -t boomerang-test-home)\" node --no-warnings --test 'tests/**/*.test.ts'",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "check": "npm test --silent && tsc --noEmit && biome check ."
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

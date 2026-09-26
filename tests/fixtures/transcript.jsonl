@@ -1,0 +1,9 @@
+{"type":"user","isSidechain":false,"message":{"role":"user","content":"Add rate limiting to the pipeline API"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"On it."}]}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}
+{"type":"user","isSidechain":false,"isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"Base directory for this skill: /x"}]}}
+{"type":"user","isSidechain":true,"message":{"role":"user","content":"subagent task text"}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":"<command-name>/clear</command-name>"}}
+not json at all
+{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"text","text":"Also cover the 429 path"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Done."}]}}
