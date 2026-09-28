@@ -46,6 +46,12 @@ const SANDBOX_FLAGS = new Set(["-s", "--sandbox", "--dangerously-bypass-approval
  * user's config.toml is not touched.
  */
 const NO_UPDATE_PROMPT = ["-c", "check_for_update_on_startup=false"];
+/**
+ * Codex can install this plugin from a Claude marketplace. Then it asks the user to trust our
+ * hooks before its input takes text, and our prompt lands on that screen. This turns the plugin
+ * off for boomerang's Codex only. No quotes around the ID: Codex keeps them as part of the key.
+ */
+const NO_BOOMERANG_PLUGIN = ["-c", "plugins.boomerang@boomerang.enabled=false"];
 
 export interface RunnerConfig {
   dataDir: string;
@@ -110,7 +116,15 @@ async function driveCodex(cfg: RunnerConfig, deps: RunnerDeps): Promise<boolean>
       cfg.codexName,
       "codex",
       cfg.codexPane,
-      ["--add-dir", dirname(cfg.handoffPath), ...sandboxArgs, ...NO_UPDATE_PROMPT, ...userArgs, ...extraArgs],
+      [
+        "--add-dir",
+        dirname(cfg.handoffPath),
+        ...sandboxArgs,
+        ...NO_UPDATE_PROMPT,
+        ...NO_BOOMERANG_PLUGIN,
+        ...userArgs,
+        ...extraArgs,
+      ],
       run,
     );
     await deps.sleep(CODEX_SETTLE_SECONDS);
