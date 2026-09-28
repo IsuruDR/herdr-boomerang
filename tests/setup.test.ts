@@ -66,7 +66,13 @@ test("SessionStart refreshes the launcher and reminds about setup until it is do
   const sessionStart = () =>
     spawnSync(process.execPath, ["--no-warnings", RUN_MJS, "session-start"], {
       input: JSON.stringify({ session_id: "s1", hook_event_name: "SessionStart" }),
-      env: { PATH: process.env.PATH, HOME: home, CLAUDE_PLUGIN_DATA: dataDir, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+      env: {
+        PATH: process.env.PATH,
+        HOME: home,
+        CLAUDE_PLUGIN_DATA: dataDir,
+        CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
+        CLAUDE_PROJECT_DIR: home,
+      },
       encoding: "utf8",
     });
 
@@ -94,7 +100,13 @@ test("SessionStart applies the cheap-model rule to the agent files, and says a m
   const sessionStart = (path: string) =>
     spawnSync(process.execPath, ["--no-warnings", RUN_MJS, "session-start"], {
       input: JSON.stringify({ session_id: "s1", hook_event_name: "SessionStart" }),
-      env: { PATH: path, HOME: home, CLAUDE_PLUGIN_DATA: dataDir, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+      env: {
+        PATH: path,
+        HOME: home,
+        CLAUDE_PLUGIN_DATA: dataDir,
+        CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
+        CLAUDE_PROJECT_DIR: home,
+      },
       encoding: "utf8",
     });
 
@@ -128,7 +140,13 @@ test("SessionStart says so when config.json is not valid JSON", () => {
   writeFileSync(join(home, ".claude", "boomerang", "config.json"), "{ hand_back: no }");
   const out = spawnSync(process.execPath, ["--no-warnings", RUN_MJS, "session-start"], {
     input: JSON.stringify({ session_id: "s1", hook_event_name: "SessionStart" }),
-    env: { PATH: "/usr/bin:/bin", HOME: home, CLAUDE_PLUGIN_DATA: dataDir, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    env: {
+      PATH: "/usr/bin:/bin",
+      HOME: home,
+      CLAUDE_PLUGIN_DATA: dataDir,
+      CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
+      CLAUDE_PROJECT_DIR: home,
+    },
     encoding: "utf8",
   });
   assert.equal(out.status, 0, out.stderr);

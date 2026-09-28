@@ -63,7 +63,7 @@ test("confirm, Codex finishes, Claude is idle after the reset: Claude gets the h
   await runHandoff(cfg, { run, now: time.now, sleep: time.sleep });
 
   const [start] = args(calls, "agent", "start");
-  assert.deepEqual(start.slice(-7), [
+  assert.deepEqual(start.slice(-9), [
     "--",
     "--add-dir",
     join(cfg.dataDir, "handoffs"),
@@ -71,6 +71,8 @@ test("confirm, Codex finishes, Claude is idle after the reset: Claude gets the h
     "workspace-write",
     "-c",
     "check_for_update_on_startup=false",
+    "-c",
+    "plugins.boomerang@boomerang.enabled=false",
   ]);
   const prompts = args(calls, "agent", "prompt");
   assert.ok(prompts[0][3].includes(cfg.handoffPath));

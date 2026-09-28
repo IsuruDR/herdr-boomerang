@@ -10,6 +10,7 @@ import { HANDOFF_MARKER } from "../scripts/lib/handoff.ts";
 import { resetAfterFor } from "../scripts/lib/hook-context.ts";
 
 const RUN_MJS = new URL("../scripts/run.mjs", import.meta.url).pathname;
+const HOOKS_JSON = new URL("../hooks/hooks.json", import.meta.url).pathname;
 const FIXTURE_TRANSCRIPT = new URL("./fixtures/transcript.jsonl", import.meta.url).pathname;
 const SOON = Math.floor(Date.now() / 1000) + 3600;
 
@@ -35,8 +36,15 @@ function tempHome(): string {
   return mkdtempSync(join(tmpdir(), "boomerang-home-"));
 }
 
-function hook(entry: string, dataDir: string, input: Record<string, unknown>, home = tempHome()) {
-  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: home, CLAUDE_PLUGIN_DATA: dataDir };
+/** Claude Code sets CLAUDE_PROJECT_DIR for every hook; `host` lets a test drop it, as Codex does. */
+function hook(
+  entry: string,
+  dataDir: string,
+  input: Record<string, unknown>,
+  home = tempHome(),
+  host: NodeJS.ProcessEnv = { CLAUDE_PROJECT_DIR: tmpdir() },
+) {
+  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: home, CLAUDE_PLUGIN_DATA: dataDir, ...host };
   const result = spawnSync(process.execPath, ["--no-warnings", RUN_MJS, entry], {
     input: JSON.stringify({ session_id: "s1", cwd: tmpdir(), ...input }),
     env,
@@ -108,6 +116,35 @@ test("a hook error is logged and never blocks Claude", () => {
   const again = hook("stop", dir, { last_assistant_message: `${HANDOFF_MARKER}\nx`, stop_hook_active: true });
   assert.equal(again, undefined);
   assert.equal(readFileSync(join(dir, "errors.log"), "utf8").split("[stop]").length - 1, 2);
+});
+
+/** The run.mjs entry of every hook in hooks.json: the last word of its command. */
+function pluginHookEntries(): string[] {
+  type HookGroup = { hooks: { command: string }[] };
+  const config: { hooks: Record<string, HookGroup[]> } = JSON.parse(readFileSync(HOOKS_JSON, "utf8"));
+  const groups = Object.values(config.hooks).flat();
+  return groups.flatMap((group) => group.hooks.map((h) => h.command.split(" ").at(-1) ?? ""));
+}
+
+test("run by Codex (no CLAUDE_PROJECT_DIR), every plugin hook does nothing", () => {
+  const dir = dataDirWithUsage(90);
+  const home = tempHome();
+  const before = readdirSync(dir);
+  // Input that makes each entry act when it runs: over the threshold, a first stop, a rate limit.
+  const input = {
+    last_assistant_message: "working",
+    stop_hook_active: false,
+    error: "rate_limit",
+    transcript_path: FIXTURE_TRANSCRIPT,
+  };
+  const entries = pluginHookEntries();
+  assert.ok(entries.length >= 4, `found the hooks: ${entries.join(", ")}`);
+  for (const entry of entries) {
+    const out = hook(entry, dir, input, home, {});
+    assert.equal(out, undefined, `${entry} said nothing`);
+  }
+  assert.deepEqual(readdirSync(dir), before, "no state, handoff or plugin_root written");
+  assert.deepEqual(readdirSync(home), [], "nothing written to the home folder");
 });
 
 test("resetAfter is the latest reset of the windows over the threshold", () => {
