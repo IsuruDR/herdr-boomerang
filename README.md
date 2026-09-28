@@ -93,7 +93,7 @@ What happens to your files:
 - If you copy fresh agent files into `~/.claude/agents`, the next sync takes them as the new originals. Edits you make to a proxy itself are overwritten at the next sync; edit the original instead, or pin the agent to `claude` first.
 - If boomerang cannot check the model (for example, `opencode models` does not answer), it changes nothing that time.
 
-Each delegation runs one Bash command (`boomerang delegate <agent>`). Unless your permission mode allows it, Claude Code asks you to approve that command the first time.
+Each delegation runs one Bash command (`boomerang delegate <agent>`). A hook in each proxy approves exactly that command, so you get no permission prompt for it, and it blocks every other command. So a proxy cannot quietly do the task itself on Claude.
 
 ## Names in Herdr
 
