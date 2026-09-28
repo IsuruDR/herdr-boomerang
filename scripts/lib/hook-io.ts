@@ -137,8 +137,8 @@ function parseOptions(option: (key: string) => string | undefined): Options {
   return {
     switchMode: oneOf(option("SWITCH_MODE"), Object.values(SwitchMode), DEFAULT_OPTIONS.switchMode),
     thresholds: {
-      five_hour: numberIn(option("FIVE_HOUR_THRESHOLD"), 50, 99, DEFAULT_OPTIONS.thresholds.five_hour),
-      seven_day: numberIn(option("SEVEN_DAY_THRESHOLD"), 50, 99, DEFAULT_OPTIONS.thresholds.seven_day),
+      five_hour: numberIn(option("FIVE_HOUR_THRESHOLD"), 1, 99, DEFAULT_OPTIONS.thresholds.five_hour),
+      seven_day: numberIn(option("SEVEN_DAY_THRESHOLD"), 1, 99, DEFAULT_OPTIONS.thresholds.seven_day),
     },
     placement: oneOf<Placement>(option("CODEX_PLACEMENT"), ["split", "tab"], DEFAULT_OPTIONS.placement),
     codexArgs: option("CODEX_ARGS") ?? DEFAULT_OPTIONS.codexArgs,

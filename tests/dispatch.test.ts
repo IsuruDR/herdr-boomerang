@@ -337,3 +337,10 @@ test("invalid Codex arguments stop before Herdr, with the reason", () => {
   assert.ok(message.includes("Extra Codex arguments are not valid"));
   assert.equal(calls.length, 0);
 });
+
+test("thresholds go down to 1%, so the handoff can be tested live at low usage", () => {
+  const low = optionsFromEnv({}, { five_hour_threshold: 5, seven_day_threshold: 1 });
+  assert.deepEqual(low.thresholds, { five_hour: 5, seven_day: 1 });
+  const invalid = optionsFromEnv({}, { five_hour_threshold: 0, seven_day_threshold: 100 });
+  assert.deepEqual(invalid.thresholds, DEFAULT_OPTIONS.thresholds);
+});
