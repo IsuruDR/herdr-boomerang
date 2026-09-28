@@ -1,0 +1,1 @@
+{"id":"cli:pane:wait-output","result":{"matched_line":"BOOM_FIX:abc","pane_id":"w2:p4","read":{"format":"text","pane_id":"w2:p4","revision":0,"source":"recent_unwrapped","tab_id":"w2:t2","text":"isuru@mac tmp % printf 'BOOM_%s:%s\\n' FIX abc\nBOOM_FIX:abc\nisuru@mac tmp %","truncated":true,"workspace_id":"w2"},"revision":0,"type":"output_matched"}}

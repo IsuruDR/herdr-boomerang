@@ -1,7 +1,9 @@
 {
   "name": "boomerang",
   "description": "Hand work from Claude Code to Codex in Herdr before Claude hits its usage limit, and back again after the reset",
-  "author": { "name": "Isuru Ranaweera" },
+  "author": {
+    "name": "Isuru Ranaweera"
+  },
   "version": "0.1.0",
   "userConfig": {
     "switch_mode": {
@@ -45,6 +47,33 @@
       "title": "Hand back to Claude",
       "description": "When Codex finishes and Claude's limit has reset, tell Claude to read the Codex report and continue. Off: only notify.",
       "default": true
+    },
+    "cheap_model_agents": {
+      "type": "string",
+      "title": "Which agents use the cheap model",
+      "description": "Agents at or below this effort run on the cheap model in OpenCode. Agents with MCP tools or Claude Code skills always stay on Claude.",
+      "options": ["none", "low-effort agents", "low- and medium-effort agents"],
+      "default": "low-effort agents"
+    },
+    "cheap_model_can_edit_files": {
+      "type": "boolean",
+      "title": "Let cheap-model agents edit files",
+      "description": "Off: only read-only agents use the cheap model. On: agents that edit files can use it too.",
+      "default": false
+    },
+    "cheap_model": {
+      "type": "string",
+      "title": "Cheap model (OpenCode model ID)",
+      "description": "provider/model as listed by `opencode models`, for example openrouter/... or vercel/...",
+      "default": "openrouter/deepseek/deepseek-v4.1-flash"
+    },
+    "delegate_timeout_seconds": {
+      "type": "number",
+      "title": "Delegation timeout (s)",
+      "description": "Stop waiting for a cheap-model agent after this many seconds",
+      "default": 540,
+      "min": 60,
+      "max": 580
     }
   }
 }

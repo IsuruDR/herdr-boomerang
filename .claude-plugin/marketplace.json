@@ -1,6 +1,9 @@
 {
   "name": "boomerang",
-  "owner": { "name": "Isuru Ranaweera" },
+  "description": "boomerang: hand work from Claude Code to Codex in Herdr before a usage limit, and back after the reset",
+  "owner": {
+    "name": "Isuru Ranaweera"
+  },
   "plugins": [
     {
       "name": "boomerang",
