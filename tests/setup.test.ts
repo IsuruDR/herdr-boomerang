@@ -119,3 +119,20 @@ test("SessionStart applies the cheap-model rule to the agent files, and says a m
     false,
   );
 });
+
+test("SessionStart says so when config.json is not valid JSON", () => {
+  const { dataDir } = temp();
+  const home = mkdtempSync(join(tmpdir(), "boomerang-home-"));
+  runSetup(PLUGIN_ROOT, dataDir, join(home, ".claude", "settings.json"));
+  mkdirSync(join(home, ".claude", "boomerang"), { recursive: true });
+  writeFileSync(join(home, ".claude", "boomerang", "config.json"), "{ hand_back: no }");
+  const out = spawnSync(process.execPath, ["--no-warnings", RUN_MJS, "session-start"], {
+    input: JSON.stringify({ session_id: "s1", hook_event_name: "SessionStart" }),
+    env: { PATH: "/usr/bin:/bin", HOME: home, CLAUDE_PLUGIN_DATA: dataDir, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    encoding: "utf8",
+  });
+  assert.equal(out.status, 0, out.stderr);
+  const message = JSON.parse(out.stdout).systemMessage;
+  assert.ok(message.includes("config.json is not valid JSON"), message);
+  assert.ok(message.includes("defaults"), message);
+});
