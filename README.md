@@ -68,12 +68,14 @@ Every setting has a default, so boomerang works right after install. The install
 
 | Key | What it does |
 |---|---|
-| `five_hour_threshold`, `seven_day_threshold` | Start the handoff at this usage, in percent (50 to 99). |
+| `five_hour_threshold`, `seven_day_threshold` | Start the handoff at this usage, in percent (1 to 99). |
 | `codex_placement` | `split`: a pane beside Claude. `tab`: a new tab in the same workspace. |
 | `codex_args` | Added when Codex starts. Without a sandbox choice here, boomerang uses `--sandbox workspace-write`, because Codex must write files to continue the work. |
 | `hand_back` | When Codex finishes and Claude's limit has reset, tell Claude to read the report and continue. |
 | `cheap_model_can_edit_files` | `false`: only read-only agents use the cheap model. |
 | `delegate_timeout_seconds` | Stop waiting for a cheap-model agent after this (60 to 580). |
+
+**To test the handoff live**, set a threshold just under your current usage (the status line shows it, for example `5h 3%`), for example `{"five_hour_threshold": 2}`. It applies at the next tool call in **every** open Claude session, so test in one session, then delete the key or the file. Each session hands off at most once per limit window.
 
 The file lives outside the plugin folder, so it survives an update or an uninstall. A value that is out of range or of the wrong type falls back to its default. If the file is not valid JSON, all defaults apply, and each session start tells you so until you fix it.
 
