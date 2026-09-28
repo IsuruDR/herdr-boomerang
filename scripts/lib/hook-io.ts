@@ -1,6 +1,11 @@
-// Hook input and plugin options. Hooks get the userConfig values as CLAUDE_PLUGIN_OPTION_<KEY>
-// strings; commands outside a hook (the launcher's `delegate`) read them from settings.json.
-// One parser serves both, with the manifest defaults when a value is missing or not valid.
+// Hook input and plugin options. Three settings are userConfig (shown in /config): hooks get
+// them as CLAUDE_PLUGIN_OPTION_<KEY> strings, and commands outside a hook (the launcher's
+// `delegate`) read them from settings.json. The tuning settings live only in the optional
+// ~/.claude/boomerang/config.json, so a hook and the launcher always see the same values.
+// One parser serves every path, with the built-in defaults when a value is missing or not valid.
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { CheapModelAgents } from "./agentdef.ts";
 import type { Placement } from "./herdr.ts";
 import type { Thresholds } from "./usage.ts";
@@ -20,7 +25,66 @@ export interface Options {
   delegateTimeoutSeconds: number;
 }
 
-/** Keep in step with the userConfig defaults in .claude-plugin/plugin.json. */
+/** The userConfig keys in .claude-plugin/plugin.json. A test keeps the two in step. */
+export const USER_CONFIG_KEYS: ReadonlySet<string> = new Set(["switch_mode", "cheap_model_agents", "cheap_model"]);
+
+/** The optional tuning file. It sits outside the plugin data folder, so it survives an uninstall. */
+export const ADVANCED_CONFIG_PATH = join(homedir(), ".claude", "boomerang", "config.json");
+
+export type SettingValue = string | number | boolean;
+export type SettingValues = Record<string, SettingValue>;
+
+/** The file's values are unchecked JSON; the parser accepts only strings, numbers and booleans. */
+export type AdvancedConfig =
+  | { kind: "missing" }
+  | { kind: "valid"; values: Record<string, unknown> }
+  | { kind: "invalid"; reason: string };
+
+/** The seven tuning keys that config.json may hold. */
+export const ADVANCED_KEYS: ReadonlySet<string> = new Set([
+  "five_hour_threshold",
+  "seven_day_threshold",
+  "codex_placement",
+  "codex_args",
+  "hand_back",
+  "cheap_model_can_edit_files",
+  "delegate_timeout_seconds",
+]);
+
+/** Keys in config.json that boomerang does not read, so SessionStart can name a typo. */
+export function unknownAdvancedKeys(values: Record<string, unknown>): string[] {
+  return Object.keys(values).filter((key) => !ADVANCED_KEYS.has(key));
+}
+
+export function readAdvancedConfig(path: string = ADVANCED_CONFIG_PATH): AdvancedConfig {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "ENOENT") return { kind: "missing" };
+    return { kind: "invalid", reason: `${path} cannot be read (${code ?? error})` };
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return { kind: "invalid", reason: `${path} must hold one JSON object` };
+    }
+    return { kind: "valid", values: parsed };
+  } catch (error) {
+    return { kind: "invalid", reason: `${path} is not valid JSON (${error instanceof Error ? error.message : error})` };
+  }
+}
+
+/**
+ * The file's values, or {} when it is missing or invalid (defaults apply; SessionStart reports invalid).
+ * Tests must pass their own values: this default reads the real ~/.claude/boomerang/config.json.
+ */
+export function advancedValues(config: AdvancedConfig = readAdvancedConfig()): Record<string, unknown> {
+  return config.kind === "valid" ? config.values : {};
+}
+
+/** Built-in defaults. The three userConfig defaults must match .claude-plugin/plugin.json. */
 export const DEFAULT_OPTIONS: Options = {
   switchMode: SwitchMode.Confirm,
   thresholds: { five_hour: 85, seven_day: 95 },
@@ -67,7 +131,7 @@ function booleanOr(value: string | undefined, fallback: boolean): boolean {
   return fallback;
 }
 
-/** `option(KEY)` returns the raw value of a userConfig key (upper-case, as in CLAUDE_PLUGIN_OPTION_<KEY>). */
+/** `option(KEY)` returns the raw value of a setting by its upper-case key, as in CLAUDE_PLUGIN_OPTION_<KEY>. */
 function parseOptions(option: (key: string) => string | undefined): Options {
   const cheapModel = option("CHEAP_MODEL");
   return {
@@ -95,16 +159,33 @@ function parseOptions(option: (key: string) => string | undefined): Options {
   };
 }
 
-export function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
-  return parseOptions((key) => env[`CLAUDE_PLUGIN_OPTION_${key}`]);
+/** Only strings, numbers and booleans count; null, lists and objects fall back to the default. */
+const asText = (value: unknown): string | undefined =>
+  typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : undefined;
+
+/**
+ * Where one setting comes from: the three userConfig keys only from userConfig, the tuning keys
+ * only from config.json. Neither falls back to the other, so a hook (env) and the launcher
+ * (settings.json) can never see different values. Undefined means the parser uses the default.
+ */
+function lookup(userConfigValue: (key: string) => string | undefined, advanced: Record<string, unknown>) {
+  return (upperKey: string): string | undefined => {
+    const key = upperKey.toLowerCase();
+    return USER_CONFIG_KEYS.has(key) ? userConfigValue(key) : asText(advanced[key]);
+  };
 }
 
-/** From `pluginConfigs[...].options` in settings.json, where keys are lower-case and values are typed. */
-export function optionsFromSettings(saved: Record<string, string | number | boolean>): Options {
-  return parseOptions((key) => {
-    const value = saved[key.toLowerCase()];
-    return value === undefined ? undefined : String(value);
-  });
+/** In a hook: userConfig from CLAUDE_PLUGIN_OPTION_*, the rest from config.json. */
+export function optionsFromEnv(env: NodeJS.ProcessEnv, advanced: Record<string, unknown> = advancedValues()): Options {
+  return parseOptions(lookup((key) => env[`CLAUDE_PLUGIN_OPTION_${key.toUpperCase()}`], advanced));
+}
+
+/** Outside a hook: userConfig from `pluginConfigs[...].options` in settings.json, the rest from config.json. */
+export function optionsFromSettings(
+  saved: SettingValues,
+  advanced: Record<string, unknown> = advancedValues(),
+): Options {
+  return parseOptions(lookup((key) => asText(saved[key]), advanced));
 }
 
 export function dataDirFromEnv(env: NodeJS.ProcessEnv): string {

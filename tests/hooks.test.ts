@@ -30,8 +30,13 @@ function handoffText(dir: string): string {
   return readFileSync(join(dir, "handoffs", files[0]), "utf8");
 }
 
-function hook(entry: string, dataDir: string, input: Record<string, unknown>) {
-  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: process.env.HOME, CLAUDE_PLUGIN_DATA: dataDir };
+/** Hook processes never see the real home folder: no real settings.json, config.json or agents. */
+function tempHome(): string {
+  return mkdtempSync(join(tmpdir(), "boomerang-home-"));
+}
+
+function hook(entry: string, dataDir: string, input: Record<string, unknown>, home = tempHome()) {
+  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: home, CLAUDE_PLUGIN_DATA: dataDir };
   const result = spawnSync(process.execPath, ["--no-warnings", RUN_MJS, entry], {
     input: JSON.stringify({ session_id: "s1", cwd: tmpdir(), ...input }),
     env,
@@ -136,7 +141,7 @@ test("a successful dispatch leaves no lock behind", () => {
 
 test("a session id with path characters is ignored", () => {
   const dir = dataDirWithUsage(90);
-  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: process.env.HOME, CLAUDE_PLUGIN_DATA: dir };
+  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: tempHome(), CLAUDE_PLUGIN_DATA: dir };
   const result = spawnSync(process.execPath, ["--no-warnings", RUN_MJS, "tool-batch"], {
     input: JSON.stringify({ session_id: "../../escape" }),
     env,
@@ -144,4 +149,14 @@ test("a session id with path characters is ignored", () => {
   });
   assert.equal(result.status, 0);
   assert.equal(result.stdout, "");
+});
+
+test("a hook uses the threshold from config.json in the home folder", () => {
+  const home = tempHome();
+  mkdirSync(join(home, ".claude", "boomerang"), { recursive: true });
+  writeFileSync(join(home, ".claude", "boomerang", "config.json"), JSON.stringify({ five_hour_threshold: 60 }));
+  const input = { hook_event_name: "PostToolBatch" };
+  assert.equal(hook("tool-batch", dataDirWithUsage(70), input), undefined, "70% is under the default of 85%");
+  const warned = hook("tool-batch", dataDirWithUsage(70), input, home);
+  assert.ok(warned.hookSpecificOutput.additionalContext.includes("5-hour usage is at 70%"));
 });

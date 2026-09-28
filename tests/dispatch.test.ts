@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -10,7 +10,10 @@ import {
   type Options,
   optionsFromEnv,
   optionsFromSettings,
+  readAdvancedConfig,
   readHookInput,
+  USER_CONFIG_KEYS,
+  unknownAdvancedKeys,
 } from "../scripts/lib/hook-io.ts";
 import { fails, fakeHerdr, fixture, ok } from "./helpers/fake-herdr.ts";
 
@@ -67,48 +70,105 @@ function argAfter(args: string[], flag: string): string | undefined {
   return i >= 0 ? args[i + 1] : undefined;
 }
 
-test("options come from the plugin env, with defaults for missing or bad values", () => {
-  assert.deepEqual(optionsFromEnv({}), DEFAULT_OPTIONS);
-  const options = optionsFromEnv({
-    CLAUDE_PLUGIN_OPTION_SWITCH_MODE: "auto",
-    CLAUDE_PLUGIN_OPTION_FIVE_HOUR_THRESHOLD: "70",
-    CLAUDE_PLUGIN_OPTION_SEVEN_DAY_THRESHOLD: "lots",
-    CLAUDE_PLUGIN_OPTION_CODEX_PLACEMENT: "tab",
-    CLAUDE_PLUGIN_OPTION_CODEX_ARGS: "--no-daemon",
-    CLAUDE_PLUGIN_OPTION_HAND_BACK: "false",
-  });
+test("the three user-config settings come from the plugin env; the rest from config.json", () => {
+  assert.deepEqual(optionsFromEnv({}, {}), DEFAULT_OPTIONS);
+  const options = optionsFromEnv(
+    { CLAUDE_PLUGIN_OPTION_SWITCH_MODE: "auto", CLAUDE_PLUGIN_OPTION_CHEAP_MODEL: "vercel/google/gemini-3-flash" },
+    {
+      five_hour_threshold: 70,
+      seven_day_threshold: "lots",
+      codex_placement: "tab",
+      codex_args: "--no-daemon",
+      hand_back: false,
+      cheap_model_can_edit_files: true,
+      delegate_timeout_seconds: 120,
+    },
+  );
   assert.deepEqual(options, {
     ...DEFAULT_OPTIONS,
     switchMode: "auto",
+    cheapModel: "vercel/google/gemini-3-flash",
     thresholds: { five_hour: 70, seven_day: 95 },
     placement: "tab",
     codexArgs: "--no-daemon",
     handBack: false,
+    cheapModelCanEditFiles: true,
+    delegateTimeoutSeconds: 120,
   });
-  assert.equal(optionsFromEnv({ CLAUDE_PLUGIN_OPTION_SWITCH_MODE: "yolo" }).switchMode, "confirm");
+  assert.equal(optionsFromEnv({ CLAUDE_PLUGIN_OPTION_SWITCH_MODE: "yolo" }, {}).switchMode, "confirm");
 });
 
-test("the cheap-model options come from the env or from settings.json, with the same parser", () => {
-  assert.equal(DEFAULT_OPTIONS.cheapModelAgents, "low-effort agents");
-  assert.equal(DEFAULT_OPTIONS.cheapModelCanEditFiles, false);
-  assert.equal(DEFAULT_OPTIONS.cheapModel, "openrouter/deepseek/deepseek-v4.1-flash");
-  assert.equal(DEFAULT_OPTIONS.delegateTimeoutSeconds, 540);
-  const fromEnv = optionsFromEnv({
-    CLAUDE_PLUGIN_OPTION_CHEAP_MODEL_AGENTS: "low- and medium-effort agents",
-    CLAUDE_PLUGIN_OPTION_CHEAP_MODEL_CAN_EDIT_FILES: "true",
-    CLAUDE_PLUGIN_OPTION_CHEAP_MODEL: "vercel/google/gemini-3-flash",
-    CLAUDE_PLUGIN_OPTION_DELEGATE_TIMEOUT_SECONDS: "120",
-  });
-  const fromSettings = optionsFromSettings({
-    cheap_model_agents: "low- and medium-effort agents",
-    cheap_model_can_edit_files: true,
-    cheap_model: "vercel/google/gemini-3-flash",
-    delegate_timeout_seconds: 120,
-  });
+test("config.json never sets the three user-config settings, so hooks and the launcher agree", () => {
+  const options = optionsFromEnv(
+    { CLAUDE_PLUGIN_OPTION_SWITCH_MODE: "notify" },
+    { switch_mode: "auto", cheap_model: "a/b" },
+  );
+  assert.equal(options.switchMode, "notify");
+  assert.equal(options.cheapModel, DEFAULT_OPTIONS.cheapModel, "cheap_model in config.json is ignored");
+  assert.equal(optionsFromSettings({}, { switch_mode: "auto" }).switchMode, DEFAULT_OPTIONS.switchMode);
+});
+
+test("only strings, numbers and booleans count in config.json; anything else is the default", () => {
+  const options = optionsFromEnv({}, { codex_args: null, codex_placement: ["tab"], hand_back: { no: true } } as never);
+  assert.equal(options.codexArgs, "", "a null must not reach Codex as the text 'null'");
+  assert.equal(options.placement, DEFAULT_OPTIONS.placement);
+  assert.equal(options.handBack, DEFAULT_OPTIONS.handBack);
+});
+
+test("a tuning setting in the plugin env is ignored: hooks and the launcher must agree", () => {
+  const options = optionsFromEnv({ CLAUDE_PLUGIN_OPTION_FIVE_HOUR_THRESHOLD: "60" }, {});
+  assert.equal(options.thresholds.five_hour, DEFAULT_OPTIONS.thresholds.five_hour);
+  const fromSettings = optionsFromSettings({ five_hour_threshold: 60 }, {});
+  assert.equal(fromSettings.thresholds.five_hour, DEFAULT_OPTIONS.thresholds.five_hour);
+});
+
+test("the env path and the settings.json path parse the same way", () => {
+  const advanced = { cheap_model_can_edit_files: true, delegate_timeout_seconds: 120 };
+  const fromEnv = optionsFromEnv(
+    {
+      CLAUDE_PLUGIN_OPTION_CHEAP_MODEL_AGENTS: "low- and medium-effort agents",
+      CLAUDE_PLUGIN_OPTION_CHEAP_MODEL: "vercel/google/gemini-3-flash",
+    },
+    advanced,
+  );
+  const fromSettings = optionsFromSettings(
+    { cheap_model_agents: "low- and medium-effort agents", cheap_model: "vercel/google/gemini-3-flash" },
+    advanced,
+  );
   assert.deepEqual(fromEnv, fromSettings);
-  assert.equal(fromSettings.cheapModelCanEditFiles, true);
-  assert.equal(fromSettings.delegateTimeoutSeconds, 120);
-  assert.equal(optionsFromSettings({ cheap_model_agents: "everything" }).cheapModelAgents, "low-effort agents");
+  assert.equal(optionsFromSettings({ cheap_model_agents: "everything" }, {}).cheapModelAgents, "low-effort agents");
+});
+
+test("config.json is read with a named result: missing, valid or invalid", () => {
+  const dir = mkdtempSync(join(tmpdir(), "boomerang-"));
+  assert.deepEqual(readAdvancedConfig(join(dir, "config.json")), { kind: "missing" });
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ hand_back: false }));
+  assert.deepEqual(readAdvancedConfig(join(dir, "config.json")), { kind: "valid", values: { hand_back: false } });
+  writeFileSync(join(dir, "config.json"), "{ hand_back: no }");
+  const invalid = readAdvancedConfig(join(dir, "config.json"));
+  assert.equal(invalid.kind, "invalid");
+  writeFileSync(join(dir, "config.json"), "[1, 2]");
+  assert.equal(readAdvancedConfig(join(dir, "config.json")).kind, "invalid", "a JSON array is not a settings object");
+  mkdirSync(join(dir, "folder.json"));
+  assert.equal(
+    readAdvancedConfig(join(dir, "folder.json")).kind,
+    "invalid",
+    "a file that cannot be read is not missing",
+  );
+});
+
+test("unknown keys in config.json are named, so a typo is not silent", () => {
+  assert.deepEqual(unknownAdvancedKeys({ five_hour_treshold: 60, hand_back: false, switch_mode: "auto" }), [
+    "five_hour_treshold",
+    "switch_mode",
+  ]);
+  assert.deepEqual(unknownAdvancedKeys({ five_hour_threshold: 60 }), []);
+});
+
+test("plugin.json declares exactly the three user-config settings", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../.claude-plugin/plugin.json", import.meta.url), "utf8"));
+  assert.deepEqual(Object.keys(manifest.userConfig).sort(), [...USER_CONFIG_KEYS].sort());
+  assert.deepEqual([...USER_CONFIG_KEYS].sort(), ["cheap_model", "cheap_model_agents", "switch_mode"]);
 });
 
 test("hook input parsing and the subagent check", () => {

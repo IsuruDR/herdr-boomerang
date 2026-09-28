@@ -40,18 +40,42 @@ If the limit arrives before Claude can write the handoff, boomerang builds one f
 
 ## Settings
 
-Change them in `/config`, under boomerang.
+Every setting has a default, so boomerang works right after install. The install may say "3 userConfig options not yet set": that is Claude Code's note for settings you have not opened yet, and the defaults already apply.
+
+**In `/config`** (under boomerang), the three settings you are likely to change:
 
 | Setting | Default | What it does |
 |---|---|---|
 | Switch mode | `confirm` | `confirm`: open Codex and wait for you. `auto`: start Codex at once. `notify`: only save the handoff and tell you. |
-| 5-hour limit threshold (%) | 85 | Start the handoff at this 5-hour usage. |
-| 7-day limit threshold (%) | 95 | Start the handoff at this 7-day usage. |
-| Codex placement | `split` | `split`: a pane beside Claude. `tab`: a new tab in the same workspace. |
-| Extra Codex arguments | empty | Added when Codex starts. Without a sandbox choice here, boomerang uses `--sandbox workspace-write`, because Codex must write files to continue the work. |
-| Hand back to Claude | on | When Codex finishes and Claude's limit has reset, tell Claude to read the report and continue. |
+| Which agents use the cheap model | `low-effort agents` | `none`, `low-effort agents`, or `low- and medium-effort agents`. See [Cheap-model agents](#cheap-model-agents). |
+| Cheap model (OpenCode model ID) | `openrouter/deepseek/deepseek-v4.1-flash` | Any `provider/model` from `opencode models`, for example a `vercel/...` model through Vercel AI Gateway. |
 
 `[a]` on the confirm screen asks once more (`[y/N]`) before it sets Switch mode to `auto`, so a stray key never changes a setting. You can set it back in `/config`.
+
+**For tuning**, create `~/.claude/boomerang/config.json` with only the keys you want to change. These are all of them, with their defaults:
+
+```json
+{
+  "five_hour_threshold": 85,
+  "seven_day_threshold": 95,
+  "codex_placement": "split",
+  "codex_args": "",
+  "hand_back": true,
+  "cheap_model_can_edit_files": false,
+  "delegate_timeout_seconds": 540
+}
+```
+
+| Key | What it does |
+|---|---|
+| `five_hour_threshold`, `seven_day_threshold` | Start the handoff at this usage, in percent (50 to 99). |
+| `codex_placement` | `split`: a pane beside Claude. `tab`: a new tab in the same workspace. |
+| `codex_args` | Added when Codex starts. Without a sandbox choice here, boomerang uses `--sandbox workspace-write`, because Codex must write files to continue the work. |
+| `hand_back` | When Codex finishes and Claude's limit has reset, tell Claude to read the report and continue. |
+| `cheap_model_can_edit_files` | `false`: only read-only agents use the cheap model. |
+| `delegate_timeout_seconds` | Stop waiting for a cheap-model agent after this (60 to 580). |
+
+The file lives outside the plugin folder, so it survives an update or an uninstall. A value that is out of range or of the wrong type falls back to its default. If the file is not valid JSON, all defaults apply, and each session start tells you so until you fix it.
 
 ## Cheap-model agents
 
@@ -73,12 +97,8 @@ Claude Code picks a subagent by its description. boomerang can run some of your 
 
 A rule decides which agents move. It uses the `effort` that each agent file already has:
 
-| Setting in `/config` | Default | What it does |
-|---|---|---|
-| Which agents use the cheap model | `low-effort agents` | `none`, `low-effort agents`, or `low- and medium-effort agents`. |
-| Let cheap-model agents edit files | off | Off: only read-only agents move. |
-| Cheap model (OpenCode model ID) | `openrouter/deepseek/deepseek-v4.1-flash` | Any `provider/model` from `opencode models`, for example a `vercel/...` model through Vercel AI Gateway. |
-| Delegation timeout (s) | 540 | Stop waiting for a cheap-model agent after this. |
+- "Which agents use the cheap model" and "Cheap model" are in `/config`.
+- `cheap_model_can_edit_files` and `delegate_timeout_seconds` are in `~/.claude/boomerang/config.json` (see [Settings](#settings)).
 
 Agents that use MCP tools (Linear, Slack, Supabase, context7) or preload Claude Code skills always stay on Claude, because OpenCode does not have those. With the defaults, only read-only, low-effort agents without them move.
 
@@ -119,7 +139,7 @@ Everything goes into the plugin data folder (`~/.claude/plugins/data/boomerang-b
 ## When something goes wrong
 
 - **The machine restarted while Codex worked.** The background process that does the hand-back is gone. The handoff and the report are still in the data folder. Tell Claude: "Read `<report path>`, review `git diff`, and continue."
-- **Codex exits at once with "Cannot use the shared background server".** This happens when the Codex CLI and its background server have different versions. boomerang tries once more with `--no-daemon`. To fix it, update Codex (`codex update`), or add `--no-daemon` to Extra Codex arguments.
+- **Codex exits at once with "Cannot use the shared background server".** This happens when the Codex CLI and its background server have different versions. boomerang tries once more with `--no-daemon`. To fix it, update Codex (`codex update`), or add `"codex_args": "--no-daemon"` to `~/.claude/boomerang/config.json`.
 - **Codex asks a question.** Herdr shows it as `blocked`, and boomerang notifies you. boomerang never answers for Codex.
 - **Codex's own startup screens.** boomerang starts Codex with `-c check_for_update_on_startup=false`, so the update screen does not appear, and our prompt cannot answer it. Your `~/.codex/config.toml` is not changed. Codex can also ask whether you trust a folder the first time it runs there. Herdr may count that screen as ready, and then boomerang's prompt could answer it. If you use Codex in a new folder, open Codex there once yourself first.
 - **Claude is busy when its limit resets.** boomerang does not type into a busy agent. It notifies you, and you point Claude at the report.
