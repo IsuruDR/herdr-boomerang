@@ -10,7 +10,7 @@ const currentNode = process.versions.node.split(".").map(Number);
 
 // Hooks and the status line must stay quiet (their output goes to Claude Code); the other
 // entries run in a terminal or for a person, so they say why they stop.
-const QUIET_ENTRIES = new Set(["tool-batch", "stop", "stop-failure", "statusline"]);
+const QUIET_ENTRIES = new Set(["tool-batch", "stop", "stop-failure", "statusline", "proxy-guard"]);
 
 if (isOlderThan(currentNode, MINIMUM_NODE)) {
   const message = `boomerang needs Node 22.18 or later (found ${process.versions.node}).`;
